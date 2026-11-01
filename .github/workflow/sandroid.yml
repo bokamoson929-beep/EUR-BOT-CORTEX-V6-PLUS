@@ -1,0 +1,187 @@
+
+name: Build EUR BOT CORTEX V6+
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get project
+        uses: actions/checkout@v4
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Create Android project
+        run: |
+          mkdir -p app/src/main/java/com/eurbot/cortex
+          mkdir -p app/src/main/assets
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "EURBOTCortexV6Plus"
+          include(":app")
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" > gradle.properties
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.eurbot.cortex'
+              compileSdk 35
+              defaultConfig {
+                  applicationId 'com.eurbot.cortex'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar"
+                  android:label="EUR BOT CORTEX V6+">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/eurbot/cortex/MainActivity.java <<'EOF'
+          package com.eurbot.cortex;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebSettings;
+
+          public class MainActivity extends Activity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  WebView web = new WebView(this);
+                  WebSettings settings = web.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  setContentView(web);
+                  web.loadUrl("file:///android_asset/index.html");
+              }
+          }
+          EOF
+
+          cat > app/src/main/assets/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <meta name="theme-color" content="#090b10">
+          <title>EUR BOT CORTEX V6+</title>
+          <style>
+          body{background:#090b10;color:white;font-family:Arial;padding:18px}
+          h1{color:#e8b84e;font-size:23px}
+          .card{background:#171d28;border:1px solid #343d4c;border-radius:15px;padding:18px;margin:15px 0}
+          .price{font-size:34px;color:#e8b84e}
+          button{background:#e8b84e;border:0;border-radius:10px;padding:15px;width:100%;font-weight:bold;margin-top:10px}
+          .muted{color:#aab2c0;font-size:13px}
+          </style>
+          </head>
+          <body>
+          <h1>EUR BOT CORTEX V6+</h1>
+          <p class="muted">GOLD TRADING DASHBOARD</p>
+          <div class="card">
+          <p>XAU/USD · SIMULATED PRICE</p>
+          <div class="price" id="price">$2650.00</div>
+          <p class="muted">Illustrative price only, not live data.</p>
+          </div>
+          <div class="card">
+          <p>DEMO BALANCE</p>
+          <h2 id="balance">$10,000.00</h2>
+          <p>Robot status: <b id="status">STOPPED</b></p>
+          <button onclick="toggle()" id="start">START DEMO ROBOT</button>
+          <button onclick="trade()">OPEN DEMO BUY</button>
+          <p id="history" class="muted">No demo trades yet.</p>
+          </div>
+          <div class="card">
+          <p>Risk settings · Demo only</p>
+          <p>Stop loss: 500 points</p>
+          <p>Take profit: 800 points</p>
+          </div>
+          <p class="muted">Simulation only. No broker connection or real orders.</p>
+          <script>
+          let running=false,price=2650,count=0,balance=10000;
+          function toggle(){
+            running=!running;
+            document.getElementById('status').textContent=running?'RUNNING':'STOPPED';
+            document.getElementById('start').textContent=running?'STOP DEMO ROBOT':'START DEMO ROBOT';
+          }
+          function trade(){
+            count++;
+            document.getElementById('history').textContent='Simulated BUY trades: '+count;
+          }
+          setInterval(()=>{
+            price+=(Math.random()-.5)*2;
+            document.getElementById('price').textContent='$'+price.toFixed(2);
+          },1800);
+          </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Build APK
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compile Android APK
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: EUR-BOT-CORTEX-V6-PLUS-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
